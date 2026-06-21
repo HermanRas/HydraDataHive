@@ -30,3 +30,107 @@ body {
 code {
     color: #6cc4ff;
 }
+
+/* Dark-theme contrast fixes */
+.text-muted {
+    color: #9aa3b2 !important;
+    /* Bootstrap default #6c757d is too dark on #0f1115 */
+}
+
+a {
+    color: #6cc4ff;
+}
+
+a:hover {
+    color: #8fd3ff;
+}
+
+.form-control,
+.form-select {
+    background-color: #14171e;
+    color: #d6d8db;
+    border-color: #2c303a;
+}
+
+.form-control:focus,
+.form-select:focus {
+    background-color: #14171e;
+    color: #d6d8db;
+    border-color: #6cc4ff;
+    box-shadow: 0 0 0 0.2rem rgba(108, 196, 255, 0.25);
+}
+
+.form-control::placeholder {
+    color: #6c7480;
+}
+
+.form-control:disabled,
+.form-control[readonly] {
+    background-color: #1a1d24;
+    color: #9aa3b2;
+}
+
+/* Description lists (<dl>) — used on /identity and other info pages */
+.card-body dt {
+    color: #b8bfcc;
+    font-weight: 500;
+}
+
+.card-body dd {
+    color: #d6d8db;
+}
+
+.card-body .small,
+.card-body small {
+    color: #b8bfcc;
+}
+
+/* List-group entries inside cards (used on /audit, /data) */
+.list-group-item {
+    background-color: #14171e;
+    color: #d6d8db;
+    border-color: #2c303a;
+}
+
+/* DataTables controls — labels and info text inside cards */
+.dataTables_wrapper .dataTables_length label,
+.dataTables_wrapper .dataTables_filter label,
+.dataTables_wrapper .dataTables_info,
+.dataTables_wrapper .dataTables_paginate {
+    color: #b8bfcc;
+}
+
+.dataTables_wrapper .dataTables_length select,
+.dataTables_wrapper .dataTables_filter input {
+    background-color: #14171e;
+    color: #d6d8db;
+    border-color: #2c303a;
+}
+
+.dataTables_wrapper .dataTables_filter input::placeholder {
+    color: #6c7480;
+}
+
+.dataTables_wrapper .page-link {
+    background-color: #14171e;
+    color: #d6d8db;
+    border-color: #2c303a;
+}
+
+.dataTables_wrapper .page-link:hover {
+    background-color: #1a1d24;
+    color: #d6d8db;
+    border-color: #2c303a;
+}
+
+.dataTables_wrapper .page-item.active .page-link {
+    background-color: #6cc4ff;
+    border-color: #6cc4ff;
+    color: #0f1115;
+}
+
+.dataTables_wrapper .page-item.disabled .page-link {
+    background-color: #14171e;
+    color: #6c7480;
+    border-color: #2c303a;
+}

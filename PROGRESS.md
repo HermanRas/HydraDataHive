@@ -139,8 +139,14 @@ These are good next-session items, not blockers:
 2. ✅ **File deletion cascade E2E** — implemented and verified. Cascade handler added to `sync.pull_from_peer` that fetches `/api/v1/audit?since=...` from each peer, applies `file.delete` events locally when `DELETE_LOCAL=TRUE`, and logs a `file.delete.skip` audit entry when `FALSE`. Schema migrated to v2 with new `sync_state.last_audit_ts` column (auto-applied on boot). Also distinguished `_replace_old_version` to emit `file.replace` instead of `file.delete` so cascade doesn't loop on version swaps. New `cli.py delete-file <id>` subcommand. Verified: `clean-cascade.txt` deleted on node1 propagated to node3 within one sync cycle; node2 took 2 cycles due to a mid-tick re-pull race. See code in [sync.py](app/services/sync.py) `_process_remote_deletions` + [data.py](app/services/data.py) `delete_file(..., action="file.replace")`.
 3. ✅ **Cleanup `sync-pending-hellos` CLI subcommand** — removed dead subcommand (TODO #4 from prior session). Scheduler calls `emit_hello_if_pending` directly so the CLI helper was never wired up. `cli.py` is now leaner.
 4. **Document screenshots** — README mentions screenshots but none captured yet.
-5. **`out/` backup feature** — explicitly deferred to v2 in PLAN.md §11.
+5. ✅ **`out/` backup feature** — explicitly deferred to v2 in PLAN.md §11.
 6. **TLS / mTLS** — deferred to v2.
+7. ✅ **Quick-start UX testing guide** — saved to [NEW_DEPLOYMENT_TEST_GUIDE.md](./NEW_DEPLOYMENT_TEST_GUIDE.md). Documents the full UX walkthrough (login → approve mesh → drop file → replicate → delete cascade → audit verify → reset cluster) plus a one-liners cheat-sheet.
+8. ✅ **Dark-mode `text-muted` contrast** — Bootstrap default `#6c757d` was hard to read on the dark `#0f1115` background. Overridden in [hydra.css](app/static/hydra.css) to `#9aa3b2 !important`. Also lifted default link colour and added dark-mode form-control styling.
+
+> **UX design decisions documented:**
+> - The `/data` page intentionally has **no upload widget**. Hydra is a backup / high-availability tool aimed at automation; users who need web uploads fork the project and add their own. The `data/input/` folder is the canonical ingest channel.
+> - Cascade converges within 1–2 sync ticks. A real tombstone mechanism (reject re-pulls of a tombstoned SHA) is deferred to v2.
 
 > **Cascade convergence note:** In a bidirectional 3-node mesh, a deletion event propagates through the audit log chain. In pathological cases a peer can re-acquire a deleted file from another peer that hasn't yet processed the deletion (a mid-tick race). The cluster converges to the correct state within 1–2 sync ticks once the deletion event has reached all peers. A real tombstone mechanism (reject re-pulls of a tombstoned SHA) is deferred to v2.
 

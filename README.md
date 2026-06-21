@@ -14,6 +14,7 @@ runs in Docker.
   All audit events are chained with SHA-256 so tampering is detectable.
 
 > Full plan, schema, and design rationale live in [PLAN.md](./PLAN.md).
+> A step-by-step UX walkthrough for a tester is in [NEW_DEPLOYMENT_TEST_GUIDE.md](./NEW_DEPLOYMENT_TEST_GUIDE.md).
 
 ---
 
