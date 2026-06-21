@@ -125,7 +125,9 @@ def ingest_file(
         file_dir = settings.datastore_dir / str(file_id)
         file_dir.mkdir(parents=True, exist_ok=True)
 
-        # Stream chunks → base64 → .b64 files
+        # Stream chunks → base64 → .b64 files.
+        # We store the on-disk (.b64) size because that is what a peer must
+        # verify on receipt.
         with open(src_path, "rb") as fh:
             for idx in range(chunk_count):
                 buf = fh.read(CHUNK_BIN_BYTES)
@@ -137,7 +139,7 @@ def ingest_file(
                 conn.execute(
                     "INSERT INTO chunks(file_id, chunk_index, path, size_bytes) "
                     "VALUES (?, ?, ?, ?)",
-                    (file_id, idx, str(chunk_path), len(buf)),
+                    (file_id, idx, str(chunk_path), len(encoded)),
                 )
 
     # Audit outside the transaction so an audit failure doesn't roll back.
