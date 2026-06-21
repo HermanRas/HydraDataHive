@@ -1,5 +1,9 @@
 # HydraDataHive
 
+<p align="center">
+  <img src="./HydraDataHive_banner_1376x378.png" alt="HydraDataHive — Mesh Data Replication" width="100%">
+</p>
+
 A lightweight, containerized **data-replication service** built around three ideas:
 **neighbors**, **data**, and **seeding** — packaged as a single Flask app that
 runs in Docker.
