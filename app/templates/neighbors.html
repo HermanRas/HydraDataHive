@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Neighbors{% endblock %}
+{% block content %}
+<div class="card">
+    <div class="card-header"><i class="bi bi-diagram-3"></i> Neighbors</div>
+    <div class="card-body">
+        <table id="neighborsTable" class="table table-dark table-striped" style="width:100%">
+            <thead>
+                <tr>
+                    <th>IP</th>
+                    <th>Name</th>
+                    <th>Pubkey</th>
+                    <th>Status</th>
+                    <th>Hello</th>
+                    <th>Last online</th>
+                    <th>Latency</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for n in neighbors %}
+                <tr>
+                    <td><code>{{ n.ip }}</code>:<code>{{ n.port }}</code></td>
+                    <td>{{ n.node_name or '—' }}</td>
+                    <td><code class="small">{{ (n.public_key or '')[:12] }}…</code></td>
+                    <td>
+                        {% if n.approved == 1 %}
+                        <span class="badge bg-success">approved</span>
+                        {% else %}
+                        <span class="badge bg-warning text-dark">pending</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if n.hello_sent == 1 %}
+                        <span class="badge bg-info">done</span>
+                        {% elif n.hello_sent == -1 %}
+                        <span class="badge bg-danger">paused</span>
+                        {% else %}
+                        <span class="badge bg-secondary">pending</span>
+                        {% endif %}
+                    </td>
+                    <td><small>{{ n.last_online or '—' }}</small></td>
+                    <td>{{ n.latency_ms or '—' }} ms</td>
+                    <td>
+                        {% if n.approved != 1 %}
+                        <form method="post" action="{{ url_for('web.neighbors_approve', ip=n.ip) }}" class="d-inline"
+                            onsubmit="return confirmAction('Approve {{ n.ip }}?', 'This will allow sync.', 'Approve')">
+                            <button class="btn btn-sm btn-success"><i class="bi bi-check-circle"></i></button>
+                        </form>
+                        {% else %}
+                        <form method="post" action="{{ url_for('web.neighbors_reject', ip=n.ip) }}" class="d-inline"
+                            onsubmit="return confirmAction('Reject {{ n.ip }}?', 'Sync will stop.', 'Reject')">
+                            <button class="btn btn-sm btn-warning"><i class="bi bi-x-circle"></i></button>
+                        </form>
+                        {% endif %}
+                        <form method="post" action="{{ url_for('web.neighbors_reset', ip=n.ip) }}" class="d-inline"
+                            onsubmit="return confirmAction('Reset hello for {{ n.ip }}?', 'Will force a fresh handshake.', 'Reset')">
+                            <button class="btn btn-sm btn-secondary" title="Reset hello"><i
+                                    class="bi bi-arrow-repeat"></i></button>
+                        </form>
+                        <form method="post" action="{{ url_for('web.neighbors_remove', ip=n.ip) }}" class="d-inline"
+                            onsubmit="return confirmAction('Remove {{ n.ip }}?', 'This deletes the neighbor row.', 'Remove')">
+                            <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="8" class="text-muted text-center py-4">No neighbors yet. Drop one in with SEED_PEERS or
+                        wait for a hello.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>$(function () { $('#neighborsTable').DataTable({ order: [[0, 'asc']], pageLength: 25 }); });</script>
+{% endblock %}

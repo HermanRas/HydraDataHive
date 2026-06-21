@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="row g-3">
+    <div class="col-md-4">
+        <div class="card text-bg-dark">
+            <div class="card-body">
+                <h6 class="card-subtitle text-info">Files</h6>
+                <div class="display-6">{{ files|length }}</div>
+                <a href="{{ url_for('web.data_page') }}" class="text-info small">View datastore →</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-bg-dark">
+            <div class="card-body">
+                <h6 class="card-subtitle text-info">Neighbors</h6>
+                <div class="display-6">{{ neighbors|length }}</div>
+                <small class="text-muted">
+                    {% set approved = neighbors|selectattr('approved', 'eq', 1)|list %}
+                    {{ approved|length }} approved
+                </small>
+                <a href="{{ url_for('web.neighbors_page') }}" class="text-info small d-block">Manage →</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-bg-dark">
+            <div class="card-body">
+                <h6 class="card-subtitle text-info">Audit Chain</h6>
+                <div class="display-6">
+                    {% if chain_status.ok %}
+                    <i class="bi bi-shield-check text-success"></i>
+                    {% else %}
+                    <i class="bi bi-shield-exclamation text-danger"></i>
+                    {% endif %}
+                </div>
+                <small class="text-muted">{{ chain_status.checked }} entries verified</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mt-2">
+    <div class="col-lg-7">
+        <div class="card">
+            <div class="card-header">Recent files</div>
+            <div class="card-body p-0">
+                <table class="table table-sm table-dark table-striped mb-0">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Name</th>
+                            <th>Size</th>
+                            <th>Uploaded by</th>
+                            <th>Updated</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for f in files[:10] %}
+                        <tr>
+                            <td>{{ f.id }}</td>
+                            <td><i class="bi bi-file-earmark"></i> {{ f.name }}</td>
+                            <td>{{ (f.size_bytes / 1024)|round(1) }} KB</td>
+                            <td>{{ f.uploaded_by }}</td>
+                            <td><small>{{ f.updated_at }}</small></td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="5" class="text-muted text-center py-3">No files yet.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-5">
+        <div class="card">
+            <div class="card-header">Latest audit</div>
+            <div class="card-body p-0">
+                <table class="table table-sm table-dark table-striped mb-0">
+                    <thead>
+                        <tr>
+                            <th>When</th>
+                            <th>Actor</th>
+                            <th>Action</th>
+                            <th>Target</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for a in audit_tail %}
+                        <tr>
+                            <td><small>{{ a.ts }}</small></td>
+                            <td>{{ a.actor }}</td>
+                            <td><code>{{ a.action }}</code></td>
+                            <td><small>{{ a.target }}</small></td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="4" class="text-muted text-center py-3">No audit entries.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,25 @@
+services:
+  node:
+    build: .
+    container_name: hydra-node
+    hostname: hydra-node
+    environment:
+      NODE_NAME: hydra-node
+      MASTER: "TRUE"
+      NEIGHBORS: MANUAL
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme}
+      MASTER_PEERS: ${MASTER_PEERS:-}
+      SEED_PEERS: ${SEED_PEERS:-}
+      DELETE_LOCAL: ${DELETE_LOCAL:-FALSE}
+      MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-2048}
+      HTTP_PORT: "8080"
+    volumes:
+      - hydra_data:/data
+      - hydra_keys:/keys
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+volumes:
+  hydra_data:
+  hydra_keys:

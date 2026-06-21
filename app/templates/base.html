@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}HydraDataHive{% endblock %} · {{ node_name }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/datatables.net-bs5@1.13.8/css/dataTables.bootstrap5.min.css"
+        rel="stylesheet">
+    <link href="{{ url_for('static', filename='hydra.css') }}" rel="stylesheet">
+</head>
+
+<body>
+    {% if session.get('hydra_user') %}
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top">
+        <div class="container-fluid">
+            <a class="navbar-brand fw-bold" href="{{ url_for('web.dashboard') }}">
+                <i class="bi bi-hexagon-fill text-info"></i> HydraDataHive
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="nav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('web.dashboard') }}"><i
+                                class="bi bi-speedometer2"></i> Dashboard</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('web.data_page') }}"><i
+                                class="bi bi-database"></i> Data</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('web.neighbors_page') }}"><i
+                                class="bi bi-diagram-3"></i> Neighbors</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('web.audit_page') }}"><i
+                                class="bi bi-shield-lock"></i> Audit</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('web.identity_page') }}"><i
+                                class="bi bi-key"></i> Identity</a></li>
+                </ul>
+                <span class="navbar-text text-info me-3">
+                    <i class="bi bi-hdd-network"></i> {{ node_name }}
+                    {% if is_master %}<span class="badge bg-info ms-1">MASTER</span>{% else %}<span
+                        class="badge bg-secondary ms-1">NEIGHBOR</span>{% endif %}
+                </span>
+                <a class="btn btn-outline-light btn-sm" href="{{ url_for('web.logout') }}"><i
+                        class="bi bi-box-arrow-right"></i> Logout</a>
+            </div>
+        </div>
+    </nav>
+    {% endif %}
+
+    <main class="container-fluid py-4">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <script>
+            window.__hydraFlashes = {{ messages | tojson }};
+        </script>
+        {% endif %}
+        {% endwith %}
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="text-center text-muted small py-3">
+        HydraDataHive · node <code>{{ node_name }}</code>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/datatables.net@1.13.8/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/datatables.net-bs5@1.13.8/js/dataTables.bootstrap5.min.js"></script>
+    <script src="{{ url_for('static', filename='hydra.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+
+</html>

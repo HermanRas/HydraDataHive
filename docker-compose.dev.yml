@@ -1,0 +1,99 @@
+# Dev-only: 3-node linear chain so you can exercise the full handshake
+# and mesh-discovery flow on a single host.
+#
+#   node1 (MASTER) ──hello──▶ node2 ──hello──▶ node3
+#
+# Usage:
+#   docker compose -f docker-compose.dev.yml up --build
+#   open http://localhost:8081 (node1), :8082 (node2), :8083 (node3)
+#   log in with password: devpass
+
+services:
+  node1:
+    build: .
+    container_name: hydra-node1
+    hostname: node1
+    environment:
+      NODE_NAME: node1
+      MASTER: "TRUE"
+      NEIGHBORS: MANUAL
+      ADMIN_PASSWORD: devpass
+      MASTER_PEERS: ""
+      SEED_PEERS: ""
+      DELETE_LOCAL: "FALSE"
+      MAX_FILE_SIZE_MB: "2048"
+      HTTP_PORT: "8080"
+    volumes:
+      - node1_data:/data
+      - node1_keys:/keys
+    ports:
+      - "8081:8080"
+    networks:
+      - hydra_net
+    healthcheck:
+      test: [ "CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8080/api/v1/identity',timeout=2).status==200 else 1)" ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  node2:
+    build: .
+    container_name: hydra-node2
+    hostname: node2
+    depends_on:
+      node1:
+        condition: service_healthy
+    environment:
+      NODE_NAME: node2
+      MASTER: "TRUE"
+      NEIGHBORS: MANUAL
+      ADMIN_PASSWORD: devpass
+      MASTER_PEERS: "node1:8080"
+      SEED_PEERS: "node1:8080"
+      DELETE_LOCAL: "FALSE"
+      MAX_FILE_SIZE_MB: "2048"
+      HTTP_PORT: "8080"
+    volumes:
+      - node2_data:/data
+      - node2_keys:/keys
+    ports:
+      - "8082:8080"
+    networks:
+      - hydra_net
+
+  node3:
+    build: .
+    container_name: hydra-node3
+    hostname: node3
+    depends_on:
+      node2:
+        condition: service_healthy
+    environment:
+      NODE_NAME: node3
+      MASTER: "FALSE"
+      NEIGHBORS: MANUAL
+      ADMIN_PASSWORD: devpass
+      MASTER_PEERS: "node2:8080"
+      SEED_PEERS: "node2:8080"
+      DELETE_LOCAL: "FALSE"
+      MAX_FILE_SIZE_MB: "2048"
+      HTTP_PORT: "8080"
+    volumes:
+      - node3_data:/data
+      - node3_keys:/keys
+    ports:
+      - "8083:8080"
+    networks:
+      - hydra_net
+
+networks:
+  hydra_net:
+    driver: bridge
+
+volumes:
+  node1_data:
+  node1_keys:
+  node2_data:
+  node2_keys:
+  node3_data:
+  node3_keys:

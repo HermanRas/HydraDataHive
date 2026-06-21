@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Audit{% endblock %}
+{% block content %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-shield-lock"></i> Audit log</span>
+        <form method="post" action="{{ url_for('web.audit_verify_post') }}" class="m-0"
+            onsubmit="return verifyChain(event)">
+            <button class="btn btn-sm btn-info"><i class="bi bi-shield-check"></i> Verify chain</button>
+        </form>
+    </div>
+    <div class="card-body">
+        {% if chain_status.ok %}
+        <div class="alert alert-success py-2">
+            <i class="bi bi-shield-check"></i> Chain OK — {{ chain_status.checked }} entries verified.
+        </div>
+        {% else %}
+        <div class="alert alert-danger py-2">
+            <i class="bi bi-shield-exclamation"></i> Chain BROKEN — bad ids: {{ chain_status.bad_ids|join(', ') }}
+        </div>
+        {% endif %}
+        <table id="auditTable" class="table table-dark table-striped table-sm" style="width:100%">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Timestamp</th>
+                    <th>Actor</th>
+                    <th>Action</th>
+                    <th>Target</th>
+                    <th>Details</th>
+                    <th>Hash</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in rows %}
+                <tr>
+                    <td>{{ r.id }}</td>
+                    <td><small>{{ r.ts }}</small></td>
+                    <td>{{ r.actor }}</td>
+                    <td><code>{{ r.action }}</code></td>
+                    <td><small>{{ r.target }}</small></td>
+                    <td><small><code>{{ r.details }}</code></small></td>
+                    <td><code class="small">{{ r.entry_hash[:12] }}…</code></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>$(function () { $('#auditTable').DataTable({ order: [[0, 'desc']], pageLength: 50 }); });</script>
+{% endblock %}

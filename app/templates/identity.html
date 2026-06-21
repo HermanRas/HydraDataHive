@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Identity{% endblock %}
+{% block content %}
+<div class="card">
+    <div class="card-header"><i class="bi bi-key"></i> Node identity</div>
+    <div class="card-body">
+        <dl class="row">
+            <dt class="col-sm-3">Node name</dt>
+            <dd class="col-sm-9"><code>{{ node_name }}</code></dd>
+            <dt class="col-sm-3">Role</dt>
+            <dd class="col-sm-9">{% if is_master %}<span class="badge bg-info">MASTER</span>{% else %}<span
+                    class="badge bg-secondary">NEIGHBOR</span>{% endif %}</dd>
+            <dt class="col-sm-3">HTTP port</dt>
+            <dd class="col-sm-9"><code>{{ settings.http_port }}</code></dd>
+            <dt class="col-sm-3">Public key (Ed25519)</dt>
+            <dd class="col-sm-9">
+                <textarea id="pub" class="form-control font-monospace" rows="3" readonly>{{ public_key }}</textarea>
+                <button class="btn btn-sm btn-outline-info mt-2" onclick="copyPub()"><i class="bi bi-clipboard"></i>
+                    Copy</button>
+            </dd>
+            <dt class="col-sm-3">Settings</dt>
+            <dd class="col-sm-9">
+                <ul class="mb-0 small">
+                    <li>Data dir: <code>{{ settings.data_dir }}</code></li>
+                    <li>Keys dir: <code>{{ settings.keys_dir }}</code></li>
+                    <li>Seed peers: <code>{{ settings.seed_peers|join(', ') or '(none)' }}</code></li>
+                    <li>Master peers: <code>{{ settings.master_peers|join(', ') or '(none)' }}</code></li>
+                    <li>Neighbors mode: <code>{{ settings.neighbors_mode }}</code></li>
+                    <li>Delete local: <code>{{ settings.delete_local }}</code></li>
+                    <li>Max file size (MB): <code>{{ settings.max_file_size_mb }}</code></li>
+                </ul>
+            </dd>
+        </dl>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+    function copyPub() {
+        const t = document.getElementById('pub');
+        t.select(); document.execCommand('copy');
+        Swal.fire({ icon: 'success', title: 'Copied', timer: 1200, showConfirmButton: false });
+    }
+</script>
+{% endblock %}

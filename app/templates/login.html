@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Login{% endblock %}
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-4">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h4 class="card-title mb-3"><i class="bi bi-hexagon-fill text-info"></i> HydraDataHive</h4>
+                <p class="text-muted small">Sign in with the admin password configured on this node.</p>
+                <form method="post" action="{{ url_for('web.login_post') }}">
+                    <input type="hidden" name="next" value="{{ next or '' }}">
+                    <div class="mb-3">
+                        <label class="form-label">Password</label>
+                        <input type="password" name="password" class="form-control" autofocus required>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">Sign in</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

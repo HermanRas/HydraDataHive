@@ -1,0 +1,32 @@
+/* HydraDataHive — small UI tweaks */
+body {
+    background: #0f1115;
+    color: #d6d8db;
+}
+
+.card {
+    background: #1a1d24;
+    border: 1px solid #2c303a;
+}
+
+.card-header {
+    background: #14171e;
+    color: #d6d8db;
+    border-bottom: 1px solid #2c303a;
+}
+
+.table-dark {
+    --bs-table-bg: #14171e;
+}
+
+.navbar {
+    background: #0a0c10 !important;
+}
+
+.badge {
+    font-weight: 500;
+}
+
+code {
+    color: #6cc4ff;
+}

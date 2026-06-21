@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Data{% endblock %}
+{% block content %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-database"></i> Datastore</span>
+        <span class="text-muted small">Drop new files into <code>data/input/</code> — ingested every 5 min.</span>
+    </div>
+    <div class="card-body">
+        <table id="filesTable" class="table table-dark table-striped table-hover" style="width:100%">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Name</th>
+                    <th>Ext</th>
+                    <th>Size</th>
+                    <th>SHA-256</th>
+                    <th>Chunks</th>
+                    <th>Uploaded by</th>
+                    <th>Updated</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for f in files %}
+                <tr>
+                    <td>{{ f.id }}</td>
+                    <td>{{ f.name }}</td>
+                    <td>{{ f.extension or '' }}</td>
+                    <td>{{ f.size_bytes }}</td>
+                    <td><code class="small">{{ f.sha256[:12] }}…</code></td>
+                    <td>{{ f.chunk_count }}</td>
+                    <td>{{ f.uploaded_by }}</td>
+                    <td><small>{{ f.updated_at }}</small></td>
+                    <td>
+                        <a class="btn btn-sm btn-outline-info" href="{{ url_for('web.data_download', file_id=f.id) }}">
+                            <i class="bi bi-download"></i>
+                        </a>
+                        <form method="post" action="{{ url_for('web.data_delete', file_id=f.id) }}" class="d-inline"
+                            onsubmit="return confirmDelete('{{ f.name }}')">
+                            <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    $(function () {
+        $('#filesTable').DataTable({ order: [[0, 'desc']], pageLength: 25 });
+    });
+</script>
+{% endblock %}
