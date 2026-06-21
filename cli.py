@@ -91,16 +91,18 @@ def cmd_sync_now(args, s):
         print(json.dumps(out, indent=2, default=str))
 
 
+def cmd_delete_file(args, s):
+    actor = getattr(args, "actor", None) or "cli"
+    if data.delete_file(args.file_id, actor=actor):
+        print(f"deleted file_id={args.file_id}")
+    else:
+        print(f"no such file: {args.file_id}", file=sys.stderr); sys.exit(1)
+
+
 def cmd_verify_audit(args, s):
     res = audit.verify_chain()
     print(json.dumps(res, indent=2))
     sys.exit(0 if res["ok"] else 1)
-
-
-def cmd_approve_pending_hellos(args, s):
-    """Convenience helper used by e2e: hello all pending neighbors once."""
-    sent = neighbor.emit_hello_if_pending(s)
-    print(f"sent {sent} hellos")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -110,7 +112,6 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("status").set_defaults(fn=cmd_status)
     sub.add_parser("show-identity").set_defaults(fn=cmd_show_identity)
     sub.add_parser("verify-audit").set_defaults(fn=cmd_verify_audit)
-    sub.add_parser("sync-pending-hellos").set_defaults(fn=cmd_approve_pending_hellos)
 
     sp = sub.add_parser("approve"); sp.add_argument("ip"); sp.set_defaults(fn=cmd_approve)
     sp = sub.add_parser("reject"); sp.add_argument("ip"); sp.set_defaults(fn=cmd_reject)
@@ -123,6 +124,10 @@ def build_parser() -> argparse.ArgumentParser:
     sp = sub.add_parser("sync-now")
     sp.add_argument("--peer", default=None)
     sp.set_defaults(fn=cmd_sync_now)
+
+    sp = sub.add_parser("delete-file")
+    sp.add_argument("file_id", type=int)
+    sp.set_defaults(fn=cmd_delete_file)
 
     return p
 

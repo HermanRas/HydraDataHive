@@ -22,6 +22,7 @@
 | Data replication (drop → pull)      | ✅ Works (full mesh) |
 | Full 3-way mesh (node1↔node2↔node3↔node1) | ✅ Approved both ways |
 | Audit hash chain verification       | ✅ OK on all nodes |
+| File deletion cascade               | ✅ Works (converges in 1–2 ticks) |
 | **Still TODO**                      | See § 6            |
 
 ---
@@ -40,8 +41,9 @@ All 12 build steps are done and committed:
 8. ✅ `app/services/audit.py` (hash-chained log, supports nested-call `_conn=` to avoid `BEGIN-inside-BEGIN` errors)
 9. ✅ `app/scheduler.py` (APScheduler: scan_input 5m, pull 5m, discover 5m, emit_hello 1m, prune_audit daily; seeds SEED_PEERS at boot)
 10. ✅ Web UI: Bootstrap 5 + SweetAlert2 + DataTables + dark theme, login/dashboard/data/neighbors/audit/identity pages
-11. ✅ `cli.py` (`hydra-cli`: status, approve, reject, reset-hello, list-files, show-identity, sync-now, verify-audit)
+11. ✅ `cli.py` (`hydra-cli`: status, approve, reject, reset-hello, list-files, show-identity, sync-now, verify-audit, delete-file)
 12. ✅ `docker-compose.yml` + `docker-compose.dev.yml` (3-node chain) + `README.md`
+13. ✅ File deletion cascade (`sync._process_remote_deletions` + `audit.tail` fetch, schema v2 with `sync_state.last_audit_ts`, `file.replace` vs `file.delete` audit-action split)
 
 ---
 
@@ -61,6 +63,14 @@ Each was caught by running the actual compose cluster, not by the in-container t
 | 8 | **CRITICAL** chunk pull failed with `chunk 0 size mismatch` — `chunks.size_bytes` stored the **binary** chunk size but `manifest()` returned it as if it were the **on-disk (.b64)** size. Receiver compared .b64 file length to binary size → always mismatch | Store `len(encoded)` (base64 length) in `chunks.size_bytes` so it matches what's on disk and what travels over the wire | `app/services/data.py:ingest_file`         |
 
 > Bug #8 required wiping the node1 DB volumes because existing chunks were already stored with the wrong size. Cleanly reproducible from scratch via `docker compose down && docker volume rm hydra_node{1,2,3}_data && docker compose up --build -d`.
+
+### Bugs found & fixed during cascade-feature dev
+
+| # | Bug                                                                                       | Fix                                                                                  | File                                       |
+| - | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------ |
+| 9 | File deletion on owner node never propagated to peers — `audit.append("file.delete")` ran, but no consumer on receiving side ever fetched /api/v1/audit. PLAN said it would. | Added `_process_remote_deletions` to `sync.pull_from_peer` that fetches `/api/v1/audit?since=last_audit_ts` from each peer and applies `file.delete` events locally (respecting `DELETE_LOCAL`). Schema v2 adds `sync_state.last_audit_ts`. | `app/services/sync.py:_process_remote_deletions`, `app/db.py` migration |
+| 10 | `_replace_old_version` (sync-driven old-version cleanup) used `data.delete_file(...)` which emits `action="file.delete"`. That made old-version swaps look like cascade events, so a peer receiving a fresh pull could also "cascade" its own old-version cleanup → noisy audit + risk of unintentional local deletion | Added optional `action=` and `extra_details=` params to `delete_file`; `_replace_old_version` now emits `action="file.replace"` with `details={"replaced_by_updated_at": ...}`. Cascade handler only fires on `file.delete` | `app/services/data.py:delete_file`, `app/services/sync.py:_replace_old_version` |
+| 11 | First sync with a peer would replay the peer's entire audit history (since `last_audit_ts` was empty), creating dozens of noisy `file.delete.skip` audit entries for ancient, already-irrelevant deletion events | Seed `last_audit_ts` to "now" on the very first sync for a peer so we skip history | `app/services/sync.py:_process_remote_deletions` |
 
 ---
 
@@ -126,11 +136,13 @@ docker exec hydra-node1 python cli.py verify-audit # → {"ok": true, "checked":
 These are good next-session items, not blockers:
 
 1. ✅ **Full 3-way mesh approved** — node1↔node2, node2↔node3, node1↔node3 all approved both ways. Mesh discovery (node3 learned node1 via node2's hello response) works. Verified by dropping `mesh-test.txt` on node1 and seeing it replicated to node2 AND node3 with identical SHA-256 (`39db00377d5b…`). All three audit chains verify clean (9/9 on node1 & node2, 7/7 on node3).
-2. **Document screenshots** — README mentions screenshots but none captured yet.
-3. **File deletion cascade end-to-end** — code path exists (`audit.append("file.delete")` + `DELETE_LOCAL` env) but not exercised against a live peer.
-4. **`hydra-cli sync-pending-hellos`** — exists in `cli.py` but isn't run from the scheduler (the scheduler calls `emit_hello_if_pending` directly). Could remove the CLI subcommand or wire it up.
+2. ✅ **File deletion cascade E2E** — implemented and verified. Cascade handler added to `sync.pull_from_peer` that fetches `/api/v1/audit?since=...` from each peer, applies `file.delete` events locally when `DELETE_LOCAL=TRUE`, and logs a `file.delete.skip` audit entry when `FALSE`. Schema migrated to v2 with new `sync_state.last_audit_ts` column (auto-applied on boot). Also distinguished `_replace_old_version` to emit `file.replace` instead of `file.delete` so cascade doesn't loop on version swaps. New `cli.py delete-file <id>` subcommand. Verified: `clean-cascade.txt` deleted on node1 propagated to node3 within one sync cycle; node2 took 2 cycles due to a mid-tick re-pull race. See code in [sync.py](app/services/sync.py) `_process_remote_deletions` + [data.py](app/services/data.py) `delete_file(..., action="file.replace")`.
+3. ✅ **Cleanup `sync-pending-hellos` CLI subcommand** — removed dead subcommand (TODO #4 from prior session). Scheduler calls `emit_hello_if_pending` directly so the CLI helper was never wired up. `cli.py` is now leaner.
+4. **Document screenshots** — README mentions screenshots but none captured yet.
 5. **`out/` backup feature** — explicitly deferred to v2 in PLAN.md §11.
 6. **TLS / mTLS** — deferred to v2.
+
+> **Cascade convergence note:** In a bidirectional 3-node mesh, a deletion event propagates through the audit log chain. In pathological cases a peer can re-acquire a deleted file from another peer that hasn't yet processed the deletion (a mid-tick race). The cluster converges to the correct state within 1–2 sync ticks once the deletion event has reached all peers. A real tombstone mechanism (reject re-pulls of a tombstoned SHA) is deferred to v2.
 
 ---
 

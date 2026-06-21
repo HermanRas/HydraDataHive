@@ -17,6 +17,7 @@ Conflict resolution: latest ``updated_at`` wins; ties → larger ``sha256`` wins
 from __future__ import annotations
 
 import base64
+import json
 import logging
 import math
 import tempfile
@@ -67,9 +68,37 @@ def _set_last_index_ts(peer_ip: str, ts: str) -> None:
     )
 
 
+def _last_audit_ts(peer_ip: str) -> str:
+    row = get_conn().execute(
+        "SELECT last_audit_ts FROM sync_state WHERE neighbor_ip = ?", (peer_ip,)
+    ).fetchone()
+    return row["last_audit_ts"] if row and row["last_audit_ts"] else ""
+
+
+def _set_last_audit_ts(peer_ip: str, ts: str) -> None:
+    get_conn().execute(
+        """
+        INSERT INTO sync_state(neighbor_ip, last_pulled_at, last_index_ts, last_audit_ts)
+        VALUES (?, '', '', ?)
+        ON CONFLICT(neighbor_ip) DO UPDATE SET
+          last_audit_ts = excluded.last_audit_ts
+        """,
+        (peer_ip, ts),
+    )
+
+
 def fetch_index(peer: str, since: Optional[str] = None) -> Dict:
     host, port = _split_host(peer)
     url = f"http://{host}:{port}/api/v1/index"
+    params = {"since": since} if since else {}
+    r = requests.get(url, params=params, timeout=DEFAULT_TIMEOUT)
+    r.raise_for_status()
+    return r.json()
+
+
+def fetch_audit(peer: str, since: Optional[str] = None) -> Dict:
+    host, port = _split_host(peer)
+    url = f"http://{host}:{port}/api/v1/audit"
     params = {"since": since} if since else {}
     r = requests.get(url, params=params, timeout=DEFAULT_TIMEOUT)
     r.raise_for_status()
@@ -164,33 +193,118 @@ def _download_one(settings: Settings, peer: str, fmeta: Dict) -> Optional[int]:
 
 def _replace_old_version(name: str, signer: str, new_updated_at: str) -> None:
     """Delete local files with the same (name, uploaded_by) whose updated_at
-    is older than the freshly-pulled one."""
+    is older than the freshly-pulled one. Emits ``file.replace`` (not
+    ``file.delete``) so peers don't cascade a redundant deletion.
+    """
     rows = get_conn().execute(
         "SELECT id, updated_at FROM files WHERE name = ? AND uploaded_by = ?",
         (name, signer),
     ).fetchall()
     for r in rows:
-        if r["updated_at"] < new_updated_at:
-            try:
-                data.delete_file(int(r["id"]), actor="sync")
-            except Exception as exc:  # noqa: BLE001
-                log.warning("Failed to delete old version file_id=%s: %s", r["id"], exc)
+        if r["updated_at"] >= new_updated_at:
+            continue
+        try:
+            data.delete_file(
+                int(r["id"]),
+                actor="sync",
+                action="file.replace",
+                extra_details={"replaced_by_updated_at": new_updated_at},
+            )
+        except Exception as exc:  # noqa: BLE001
+            log.warning("Failed to delete old version file_id=%s: %s", r["id"], exc)
+
+
+def _process_remote_deletions(settings: Settings, peer: str, peer_ip: str) -> List[int]:
+    """Fetch the peer's audit entries since ``last_audit_ts`` and apply
+    ``file.delete`` events locally. Returns the list of locally-deleted file
+    ids. Honours ``settings.delete_local`` — when False, we still note the
+    deletion in a local audit entry but keep the file (orphan-marked).
+
+    On the very first sync for a peer (no ``last_audit_ts`` yet), we seed
+    ``last_audit_ts`` to "now" before processing so we don't try to replay
+    the entire historical audit log.
+    """
+    since = _last_audit_ts(peer_ip)
+    if not since:
+        # First sync with this peer — anchor to current time and skip history.
+        from datetime import datetime, timezone
+        seed_ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        _set_last_audit_ts(peer_ip, seed_ts)
+        return []
+    try:
+        resp = fetch_audit(peer, since=since)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("Audit fetch from %s failed: %s", peer, exc)
+        return []
+
+    entries = resp.get("entries", [])
+    deleted: List[int] = []
+    max_ts = since or ""
+    for e in entries:
+        if e.get("action") != "file.delete":
+            continue
+        try:
+            remote_id = int(e.get("target") or 0)
+        except (TypeError, ValueError):
+            continue
+        if not remote_id:
+            continue
+        if not settings.delete_local:
+            # Log the refusal locally but do not delete.
+            audit.append(
+                actor="sync",
+                action="file.delete.skip",
+                target=str(remote_id),
+                details={"reason": "DELETE_LOCAL=FALSE", "from": peer_ip},
+            )
+            if e["ts"] > max_ts:
+                max_ts = e["ts"]
+            continue
+        # Map the remote file id onto whatever local rows match by
+        # (name, uploaded_by). The remote file id is informational only —
+        # our local id will differ because of autoincrement.
+        try:
+            details = json.loads(e.get("details") or "{}")
+        except Exception:
+            details = {}
+        name = details.get("name")
+        if name:
+            rows = get_conn().execute(
+                "SELECT id, uploaded_by FROM files WHERE name = ?", (name,)
+            ).fetchall()
+            for r in rows:
+                try:
+                    if data.delete_file(int(r["id"]), actor=f"sync:{peer_ip}"):
+                        deleted.append(int(r["id"]))
+                except Exception as exc:  # noqa: BLE001
+                    log.warning("Local delete of file_id=%s failed: %s", r["id"], exc)
+        if e["ts"] > max_ts:
+            max_ts = e["ts"]
+
+    if max_ts:
+        _set_last_audit_ts(peer_ip, max_ts)
+    return deleted
 
 
 def pull_from_peer(settings: Settings, peer_ip: str) -> Dict:
     """Pull the delta from one peer; returns a summary dict."""
+    peer_spec = _peer_spec(peer_ip)
+    # Apply remote deletions first so a freshly-pulled copy in the same tick
+    # doesn't reintroduce what we just removed.
+    deleted_ids = _process_remote_deletions(settings, peer_spec, peer_ip)
+
     since = _last_index_ts(peer_ip)
     try:
-        idx = fetch_index(_peer_spec(peer_ip), since=since)
+        idx = fetch_index(peer_spec, since=since)
     except Exception as exc:  # noqa: BLE001
         log.warning("Index fetch from %s failed: %s", peer_ip, exc)
-        return {"peer": peer_ip, "ok": False, "error": str(exc)}
+        return {"peer": peer_ip, "ok": False, "error": str(exc), "deleted_local": deleted_ids}
 
     files = idx.get("files", [])
     max_ts = since or ""
     new_ids: List[int] = []
     for f in files:
-        nid = _download_one(settings, _peer_spec(peer_ip), f)
+        nid = _download_one(settings, peer_spec, f)
         if nid is not None:
             new_ids.append(nid)
             if f["updated_at"] > max_ts:
@@ -200,7 +314,13 @@ def pull_from_peer(settings: Settings, peer_ip: str) -> Dict:
     if max_ts:
         _set_last_index_ts(peer_ip, max_ts)
 
-    return {"peer": peer_ip, "ok": True, "fetched": len(files), "new_local": new_ids}
+    return {
+        "peer": peer_ip,
+        "ok": True,
+        "fetched": len(files),
+        "new_local": new_ids,
+        "deleted_local": deleted_ids,
+    }
 
 
 def _peer_spec(peer_ip: str) -> str:

@@ -78,10 +78,20 @@ SCHEMA_STATEMENTS: list[str] = [
       neighbor_ip     TEXT NOT NULL,
       last_pulled_at  TEXT NOT NULL,
       last_index_ts   TEXT NOT NULL,
+      last_audit_ts   TEXT NOT NULL DEFAULT '',
       PRIMARY KEY (neighbor_ip)
     );
     """,
     "CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY);",
+]
+
+# Migrations applied in order after SCHEMA_STATEMENTS on every boot.
+# Each migration is idempotent and bumped once the schema_version is high enough.
+_MIGRATIONS: list[tuple[int, str]] = [
+    (
+        2,
+        "ALTER TABLE sync_state ADD COLUMN last_audit_ts TEXT NOT NULL DEFAULT ''",
+    ),
 ]
 
 
@@ -143,5 +153,24 @@ def init_schema() -> None:
         conn.execute(stmt)
     cur = conn.execute("SELECT version FROM schema_version LIMIT 1")
     row = cur.fetchone()
+    current = int(row["version"]) if row else 0
     if row is None:
         conn.execute("INSERT INTO schema_version(version) VALUES (?)", (1,))
+        current = 1
+    # Apply pending migrations.
+    for target_version, ddl in _MIGRATIONS:
+        if current < target_version:
+            try:
+                conn.execute(ddl)
+                conn.execute(
+                    "UPDATE schema_version SET version = ?", (target_version,)
+                )
+                current = target_version
+            except sqlite3.OperationalError as exc:
+                # Column already exists from a manual patch — treat as migrated.
+                if "duplicate column" not in str(exc).lower():
+                    raise
+                conn.execute(
+                    "UPDATE schema_version SET version = ?", (target_version,)
+                )
+                current = target_version

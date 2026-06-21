@@ -329,8 +329,19 @@ def get_chunks(file_id: int) -> List[Dict]:
     return [dict(r) for r in rows]
 
 
-def delete_file(file_id: int, actor: str) -> bool:
-    """Remove a file row + its chunks. Returns True if anything was deleted."""
+def delete_file(
+    file_id: int,
+    actor: str,
+    action: str = "file.delete",
+    extra_details: Optional[Dict] = None,
+) -> bool:
+    """Remove a file row + its chunks. Returns True if anything was deleted.
+
+    ``action`` lets the caller emit a different audit event (e.g.
+    ``file.replace`` when the deletion is part of a version swap). The
+    emitted audit ``details`` always include ``{"name": ...}`` and are
+    merged with ``extra_details`` if provided.
+    """
     with transaction() as conn:
         row = conn.execute("SELECT name FROM files WHERE id = ?", (file_id,)).fetchone()
         if not row:
@@ -356,9 +367,10 @@ def delete_file(file_id: int, actor: str) -> bool:
         pass
 
     from app.services import audit
-    audit.append(actor=actor, action="file.delete", target=str(file_id), details={
-        "name": name,
-    })
+    details: Dict = {"name": name}
+    if extra_details:
+        details.update(extra_details)
+    audit.append(actor=actor, action=action, target=str(file_id), details=details)
     return True
 
 
