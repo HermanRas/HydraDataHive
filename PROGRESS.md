@@ -20,6 +20,7 @@
 | Hello handshake (mesh discovery)    | ✅ Works          |
 | Admin login + neighbor approval     | ✅ Works          |
 | Data replication (drop → pull)      | ✅ Works (full mesh) |
+| Full 3-way mesh (node1↔node2↔node3↔node1) | ✅ Approved both ways |
 | Audit hash chain verification       | ✅ OK on all nodes |
 | **Still TODO**                      | See § 6            |
 
@@ -124,7 +125,7 @@ docker exec hydra-node1 python cli.py verify-audit # → {"ok": true, "checked":
 
 These are good next-session items, not blockers:
 
-1. **Approve node2 → node3 from node2's UI** — currently the e2e test only approves the master/leaf pair. For full 3-way mesh you also need node2 to approve node3. The CLI does it but I haven't run that exact step in the latest cluster.
+1. ✅ **Full 3-way mesh approved** — node1↔node2, node2↔node3, node1↔node3 all approved both ways. Mesh discovery (node3 learned node1 via node2's hello response) works. Verified by dropping `mesh-test.txt` on node1 and seeing it replicated to node2 AND node3 with identical SHA-256 (`39db00377d5b…`). All three audit chains verify clean (9/9 on node1 & node2, 7/7 on node3).
 2. **Document screenshots** — README mentions screenshots but none captured yet.
 3. **File deletion cascade end-to-end** — code path exists (`audit.append("file.delete")` + `DELETE_LOCAL` env) but not exercised against a live peer.
 4. **`hydra-cli sync-pending-hellos`** — exists in `cli.py` but isn't run from the scheduler (the scheduler calls `emit_hello_if_pending` directly). Could remove the CLI subcommand or wire it up.
